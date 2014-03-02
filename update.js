@@ -21,10 +21,6 @@ function getHeaders() {
   }
 };
 
-function getStatusCode(res) {
-  return res[0].statusCode;
-}
-
 function run() {
   var ip, recordId, update;
 
@@ -95,6 +91,3 @@ function run() {
 }
 
 run();
-
-
-
