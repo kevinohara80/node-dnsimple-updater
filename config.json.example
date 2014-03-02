@@ -1,0 +1,5 @@
+{
+  "DNSIMPLE_USER": "some user",
+  "DNSIMPLE_TOKEN": "some token",
+  "UPDATE_DOMAIN": "mydomain.com"
+}
