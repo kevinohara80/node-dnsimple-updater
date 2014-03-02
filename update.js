@@ -6,20 +6,28 @@ var Q        = require('q');
 
 // read configuration from file system
 var config;
-if(fs.existsSync('./config')) {
+if(fs.existsSync('./config.json')) {
   config = require('./config');
 }
 
-var DNSIMPLE_USER      = (config) ? config.DNSIMPLE_USER      : process.env.DNSIMPLE_USER;
-var DNSIMPLE_API_TOKEN = (config) ? config.DNSIMPLE_API_TOKEN : process.env.DNSIMPLE_API_TOKEN;
-var UPDATE_DOMAIN      = (config) ? config.UPDATE_DOMAIN      : process.env.UPDATE_DOMAIN;
+var DNSIMPLE_USER  = (config) ? config.DNSIMPLE_USER  : process.env.DNSIMPLE_USER;
+var DNSIMPLE_TOKEN = (config) ? config.DNSIMPLE_TOKEN : process.env.DNSIMPLE_TOKEN;
+var UPDATE_DOMAIN  = (config) ? config.UPDATE_DOMAIN  : process.env.UPDATE_DOMAIN;
 
 function getHeaders() {
   return {
-    'X-DNSimple-Token': DNSIMPLE_USER + ':' + DNSIMPLE_API_TOKEN,
+    'X-DNSimple-Token': DNSIMPLE_USER + ':' + DNSIMPLE_TOKEN,
     'Accept': 'application/json'
   }
 };
+
+function getStatusCode(res) {
+  if(res.statusCode) {
+    return res.statusCode;
+  } else if(res[0]) {
+    return res[0].statusCode;
+  }
+}
 
 function run() {
   var ip, recordId, update;
@@ -35,24 +43,29 @@ function run() {
         url: 'https://api.dnsimple.com/v1/domains/' + UPDATE_DOMAIN + '/records',
         headers: getHeaders()
       }
+      console.log('getting domain records');
+      console.log('request: ' + opts.url);
       return Q.nfcall(request, opts)
     })
     
     // parse the records and check for a stale ip address in the A record
     .then(function(res){
+      if(getStatusCode(res) >= 300) {
+        throw new Error(JSON.parse(res[0].body));
+      }
       var records = JSON.parse(res[1]);
       for(var i=0; i<records.length; i++) {
         var rec = records[i].record;
         if(rec.record_type && rec.record_type === 'A') {
           recordId = rec.id;
-          console.log('found A record: ' + rec.content);
+          console.log('found \'A\' record: ' + rec.content);
           if(rec.content !== ip) {
             update = true;
             console.log('ip has changed');
             console.log('old ip: ' + rec.content);
           } else {
             update = false;
-            console.log('ip is the same');
+            console.log('ip matches - no changes needed');
           }
           break;
         }
@@ -74,19 +87,27 @@ function run() {
           method: 'PUT'
         }
         console.log('attempting to update ip');
+        console.log('request: ' + opts.url);
         return Q.nfcall(request, opts);
       }
     })
 
+    // check the response
+    .then(function(res) {
+      if(res && getStatusCode() >= 300) {
+        throw new Error(JSON.parse(res[0].body));
+      }
+    })
+
     // all done
-    .then(function(res){
-      console.log('finished successfully');
+    .then(function(){
+      console.log('[OK] finished successfully');
     })
     
     // something went wrong
     .fail(function(err) {
-      console.error('failed');
-      console.error(err);
+      console.error('[ERR] failed');
+      console.error(JSON.stringify(err));
     })
 }
 
